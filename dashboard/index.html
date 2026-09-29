@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEGEN-SCOUT — Pro Dashboard</title>
+<style>
+:root{--bg:#0b0e1d;--panel:#141936;--panel2:#10142b;--line:#232a4d;--txt:#dfe3f5;--dim:#8a90b2;--cyan:#00e5cc;--green:#2ebd85;--red:#f6465d;--blue:#2e7bff;--warn:#f0b90b}
+*{box-sizing:border-box;margin:0;padding:0;font-family:Inter,Segoe UI,Arial,sans-serif}
+body{background:var(--bg);color:var(--txt);font-size:13px}
+header{display:flex;align-items:center;gap:18px;padding:10px 18px;background:#0e1226;border-bottom:1px solid var(--line)}
+.logo{font-weight:800;font-size:17px}.logo span{color:var(--cyan)}
+nav{display:flex;gap:16px;color:var(--dim)}nav b{color:var(--txt);border-bottom:2px solid var(--cyan);padding-bottom:8px}
+.hspace{flex:1}.badge{padding:4px 10px;border-radius:6px;background:#1d2447;border:1px solid var(--line);color:var(--warn);font-weight:700}
+.wallet{background:var(--blue);border:0;color:#fff;padding:8px 18px;border-radius:6px;font-weight:700;cursor:pointer}
+.layout{display:grid;grid-template-columns:250px 1fr 300px;gap:10px;padding:10px;height:calc(100vh - 96px)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto}
+.panel h3{font-size:12px;color:var(--dim);letter-spacing:.5px;margin-bottom:8px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.big{font-size:20px;font-weight:800}.tabs{display:flex;gap:6px;margin:8px 0}
+.tabs button{background:#1d2447;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:11px}
+.tabs button.on,.tabs button:hover{color:#fff;border-color:var(--cyan)}
+input,select{background:#0e1330;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:7px 9px;width:100%;margin:4px 0}
+.tok{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:8px;border-bottom:1px solid var(--line);cursor:pointer}
+.tok:hover{background:#1a2145}.tok small{color:var(--dim)}
+.pill{font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px}
+.buy{background:rgba(46,189,133,.15);color:var(--green);border:1px solid var(--green)}
+.watch{background:rgba(240,185,11,.15);color:var(--warn);border:1px solid var(--warn)}
+.skip{background:rgba(246,70,93,.15);color:var(--red);border:1px solid var(--red)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px}
+.card small{color:var(--dim)}.card b{font-size:16px}
+#chart{width:100%;height:280px;background:var(--panel2);border:1px solid var(--line);border-radius:8px}
+.strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:10px 0}
+.strip div{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center}
+.up{color:var(--green)}.down{color:var(--red)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}th{color:var(--dim);text-align:left;padding:6px;border-bottom:1px solid var(--line)}td{padding:6px;border-bottom:1px solid #1b2140}
+.btn{background:var(--blue);border:0;color:#fff;padding:10px;border-radius:6px;width:100%;font-weight:800;cursor:pointer;margin-top:8px}
+.btn.ghost{background:#1d2447}.feed{margin-top:10px}.feed div{padding:7px 4px;border-bottom:1px solid #1b2140;color:var(--dim)}.feed b{color:var(--txt)}
+footer{text-align:center;color:var(--dim);padding:6px;font-size:11px}
+.scorebar{height:5px;background:#242b52;border-radius:4px;margin-top:4px}.scorebar i{display:block;height:5px;border-radius:4px;background:var(--cyan)}
+</style>
+</head>
+<body>
+<header>
+<div class="logo">DEGEN<span>-SCOUT</span></div>
+<nav><b>Dashboard</b><span>Scanner</span><span>Smart Money</span><span>Backtest</span><span>Help</span></nav>
+<div class="hspace"></div>
+<span class="badge" id="mode">DRY_RUN</span>
+<span class="badge" id="statLine">…</span>
+<button class="wallet" id="refresh">Refresh</button>
+</header>
+<div class="layout">
+<aside class="panel">
+<h3>WATCHLIST — LIVE SCAN</h3>
+<div class="row"><div><small style="color:var(--dim)">TOTAL SCORED</small><div class="big" id="total">0</div></div><div style="text-align:right"><small style="color:var(--dim)">BUY / WATCH</small><div class="big"><span class="up" id="nbuy">0</span> / <span id="nwatch">0</span></div></div></div>
+<div class="tabs"><button class="on">BASIC</button><button>GRAPH</button></div>
+<input id="q" placeholder="Search symbol / CA…">
+<div class="tabs" id="chains"><button data-c="" class="on">ALL</button><button data-c="solana">SOL</button><button data-c="bsc">BSC</button><button data-c="base">BASE</button><button data-c="eth">ETH</button></div>
+<div id="toklist"></div>
+<h3 style="margin-top:10px">TOP SNAPSHOT</h3>
+<div id="mini" style="color:var(--dim)">Pilih token untuk grafik.</div>
+</aside>
+<main class="panel">
+<div class="row"><div><h2 id="pair">—</h2><small id="ca" style="color:var(--dim)"></small></div><div id="dec"></div></div>
+<div class="cards">
+<div class="card"><small>SCORE (0-100)</small><br><b id="s0">0</b><div class="scorebar"><i id="sb" style="width:0%"></i></div></div>
+<div class="card"><small>MARKET CAP</small><br><b id="s1">0</b></div>
+<div class="card"><small>LIQUIDITY</small><br><b id="s2">0</b></div>
+<div class="card"><small>HOLDERS</small><br><b id="s3">0</b></div>
+</div>
+<canvas id="chart" width="900" height="280"></canvas>
+<div class="strip">
+<div><small>L1 Distribusi</small><br><b id="l1">0</b></div>
+<div><small>L2 SmartMoney</small><br><b id="l2">0</b></div>
+<div><small>L3 Teknikal</small><br><b id="l3">0</b></div>
+<div><small>Alasan</small><br><b id="rs" style="font-size:11px">—</b></div>
+<div><small>Keputusan</small><br><b id="dc">—</b></div>
+</div>
+<div class="row" style="align-items:start">
+<div style="flex:1"><h3>SMART INFLOW (JP / Whale / KOL)</h3><table id="tIn"><tr><th>Wallet</th><th>PnL</th><th>Tag</th></tr></table></div>
+<div style="flex:1"><h3>HOLDER & RISK CHECK</h3><table id="tHi"><tr><th>Check</th><th>Nilai</th></tr></table></div>
+</div>
+</main>
+<aside class="panel">
+<div class="tabs"><button class="on" id="tabBuy">BUY TOKEN</button><button id="tabSkip">SKIP</button></div>
+<label>PRICE (proxy mcap)</label><input id="price" value="1.0">
+<label>AMOUNT (SOL/BNB)</label><input id="amt" value="0.1">
+<label>TOTAL</label><input id="tot" value="0.1" readonly>
+<button class="btn" id="buy">Place paper buy order</button>
+<button class="btn ghost" id="loop">Run 1x live scan</button>
+<h3 style="margin-top:12px">SIGNAL MONITOR (2-5x = runner)</h3>
+<div class="feed" id="sig"></div>
+<h3 style="margin-top:12px">RECENT ACTIVITY <span id="ntr" style="float:right"></span></h3>
+<div class="feed" id="acts"></div>
+</aside>
+</div>
+<footer>DEGEN-SCOUT v1 · DRY_RUN paper-trade · SOP: top1&lt;5% · bundle&lt;20% · signal 2-5x · beli hanya support/dip2 · TP +50/+100 SL -20%</footer>
+<script>
+let TOKENS=[], CUR=null, CHAIN="";
+const $=id=>document.getElementById(id);
+async function j(u,o){const r=await fetch(u,o);return r.json()}
+function fmt(n){n=+n||0;if(n>=1e6)return (n/1e6).toFixed(2)+"M";if(n>=1e3)return (n/1e3).toFixed(1)+"K";return n.toFixed(0)}
+async function load(){
+ const s=await j("/api/stats");$("total").textContent=s.total;$("nbuy").textContent=s.buy;$("nwatch").textContent=s.watch;$("ntr").textContent=s.trades+" trades";
+ let t=await j("/api/tokens?chain="+CHAIN+"&q="+encodeURIComponent($("q").value));
+ TOKENS=t;const el=$("toklist");el.innerHTML="";
+ t.forEach(x=>{const d=document.createElement("div");d.className="tok";
+  d.innerHTML=`<div><b>${x.symbol}</b> <small>${x.chain} · ${String(x.ca).slice(0,6)}</small><div class="scorebar"><i style="width:${Math.min(100,x.score)}%"></i></div></div><div><span class="pill ${x.decision.toLowerCase()}">${x.decision} ${x.score}</span></div>`;
+  d.onclick=()=>select(x);el.appendChild(d)});
+ const tr=await j("/api/trades");const a=$("acts");a.innerHTML="";
+ tr.forEach(x=>{a.innerHTML+=`<div><b>${x.side}</b> ${String(x.ca).slice(0,6)} · ${x.amount_sol} @ ${x.price} <br><small>${x.ts||""} ${x.note||""}</small></div>`});
+ const sg=$("sig");sg.innerHTML="";
+ TOKENS.filter(x=>x.decision!=="SKIP").slice(0,6).forEach(x=>{sg.innerHTML+=`<div><b>${x.symbol}</b> score ${x.score} · ${x.chain}<br><small>${x.reason||""}</small></div>`});
+}
+async function select(x){CUR=x;$("pair").textContent=x.symbol+" / "+x.chain.toUpperCase();$("ca").textContent=x.ca;
+ $("dec").innerHTML=`<span class="pill ${x.decision.toLowerCase()}">${x.decision}</span>`;
+ $("s0").textContent=x.score;$("sb").style.width=Math.min(100,x.score)+"%";$("s1").textContent="$"+fmt(x.mcap);$("s2").textContent="$"+fmt(x.liquidity_usd);$("s3").textContent=x.holders;
+ const m=String(x.reason||"").match(/L1=(\d+).*L2=(\d+).*L3=(\d+)/);$("l1").textContent=m?m[1]:"—";$("l2").textContent=m?m[2]:"—";$("l3").textContent=m?m[3]:"—";$("rs").textContent=x.reason||"—";$("dc").textContent=x.decision;
+ $("mini").textContent=x.symbol+" score "+x.score;
+ const c=await j("/api/chart?ca="+encodeURIComponent(x.ca));draw(c.points||[]);
+ $("tIn").innerHTML="<tr><th>Wallet</th><th>PnL</th><th>Tag</th></tr><tr><td>JP-wallet*</td><td>50-120x</td><td>follow</td></tr><tr><td>Whale*</td><td>balance besar</td><td>watch</td></tr><tr><td colspan=3><small>*Detail live dari SmartMoneyTracker — hubungkan Helius/Birdeye key untuk angka nyata.</small></td></tr>";
+ $("tHi").innerHTML="<tr><th>Check</th><th>Nilai</th></tr>"+`<tr><td>Liq</td><td>$${fmt(x.liquidity_usd)}</td></tr><tr><td>Reason</td><td>${x.reason||"—"}</td></tr>`;
+}
+function draw(p){const c=$("chart"),g=c.getContext("2d");g.clearRect(0,0,c.width,c.height);if(!p.length)return;
+ const mn=Math.min(...p),mx=Math.max(...p),rg=(mx-mn)||1;g.strokeStyle="#00e5cc";g.lineWidth=2;g.beginPath();
+ p.forEach((v,i)=>{const x=i/(p.length-1)*c.width,y=c.height-10-((v-mn)/rg)*(c.height-30);i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();
+ g.fillStyle="#8a90b2";g.fillText(fmt(mx),8,12);g.fillText(fmt(mn),8,c.height-6)}
+$("refresh").onclick=load;$("q").oninput=load;
+document.querySelectorAll("#chains button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#chains button").forEach(x=>x.classList.remove("on"));b.classList.add("on");CHAIN=b.dataset.c;load()});
+$("buy").onclick=async()=>{if(!CUR)return alert("Pilih token dulu");const r=await j("/api/buy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ca:CUR.ca,chain:CUR.chain,amount:+$("amt").value||0.1,price:+$("price").value||1})});alert(r.ok?"Paper BUY tercatat (DRY_RUN)":"Gagal: "+(r.error||""));load()};
+$("loop").onclick=()=>alert("Jalankan di terminal: python -m src.bot --once --limit 10 lalu Refresh.");
+$("tabSkip").onclick=()=>alert("SKIP = tolak token ini (wash/bundled/tax/LP). Lihat kolom Reason.");
+load();
+</script>
+</body>
+</html>

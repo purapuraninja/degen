@@ -1,0 +1,13 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+# db lokal (jangan push saldo/sinyal lokal)
+*.db
+*.sqlite3
+# secrets
+.env
+# os
+.DS_Store
+Thumbs.db

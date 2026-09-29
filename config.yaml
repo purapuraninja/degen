@@ -1,0 +1,66 @@
+chains: [solana, bsc]
+mode: DRY_RUN  # DRY_RUN | SEMI_AUTO | FULL_AUTO
+
+pollIntervalSec:
+  newPair: 7
+  trending: 30
+  signal: 5
+
+minLiquidityUSD:
+  solana: 8000
+  bsc: 5000
+minHolders: 80
+maxBuyTaxPct: 10
+maxSellTaxPct: 10
+maxTop1Pct: 5.0
+idealTop1Pct: 4.0
+maxTop1HardRejectPct: 15.0
+maxDevPct: 10.0
+minUniqueWallets5m: 50
+
+volumeSpike:
+  windowMin: 10
+  mult: 3.0
+
+signalRunner:
+  minCount: 2
+  maxCount: 5
+  distinctWallets: true
+
+scores:
+  buyThreshold: 75
+  watchThreshold: 60
+  minSmartMoney: 25
+
+sizing:
+  maxConcurrent: 5
+  perPlaySol: 1.0
+  perPlayBnb: 0.1
+  markPct: 10  # 10% di bounce (mark position), sisa di dip2 konfirmasi
+
+exit:
+  tp1Pct: 50
+  tp1SellPct: 25
+  tp2Pct: 100
+  tp2SellPct: 25
+  slPct: 20
+  trailingStartPct: 200
+
+filters:
+  rejectWash: true
+  rejectBundledGt20Pct: true
+  rejectDexBoostAfterPump: true
+
+risk:
+  maxDailyLossSol: 0.75
+
+narrativeTargets:
+  # target mcap per narasi untuk hitung upside (USD). Dari panduan: banyak mentok ratusan K, runner 5M+.
+  animal: 5000000
+  politik: 8000000
+  cult: 10000000
+  cto_revive: 2000000
+  default: 3000000
+
+db:
+  path: ./degen.db

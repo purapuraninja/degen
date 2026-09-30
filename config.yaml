@@ -39,10 +39,10 @@ sizing:
   markPct: 10  # 10% di bounce (mark position), sisa di dip2 konfirmasi
 
 exit:
-  tp1Pct: 50
-  tp1SellPct: 30
-  tp2Pct: 100
-  tp2SellPct: 25
+  tp1Pct: 100
+  tp1SellPct: 60
+  tp2Pct: 200
+  tp2SellPct: 50
   slPct: 20
   trailingArmedAfter: TP1
   trailingDropPct: 50

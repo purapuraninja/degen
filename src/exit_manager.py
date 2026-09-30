@@ -2,13 +2,19 @@
 from __future__ import annotations
 
 def build_exit_orders(entry_price: float, cfg: dict) -> list[dict]:
+    """TP1 amankan modal+profit (+100% jual 60% = modal kembali + 20% profit),
+    TP2 amankan keuntungan, sisa moonbag dijaga trailing."""
     ex = cfg.get("exit", {})
-    tp1 = entry_price * (1 + ex.get("tp1Pct", 50) / 100)
-    tp2 = entry_price * (1 + ex.get("tp2Pct", 100) / 100)
+    tp1 = entry_price * (1 + ex.get("tp1Pct", 100) / 100)
+    tp2 = entry_price * (1 + ex.get("tp2Pct", 200) / 100)
     sl = entry_price * (1 - ex.get("slPct", 20) / 100)
     return [
-        {"type": "TP1", "price": tp1, "sell_pct": ex.get("tp1SellPct", 25)},
-        {"type": "TP2", "price": tp2, "sell_pct": ex.get("tp2SellPct", 25)},
+        {"type": "TP1-AMANKAN-MODAL-PROFIT", "price": tp1,
+         "sell_pct": ex.get("tp1SellPct", 60)},
+        {"type": "TP2-AMANKAN-PROFIT", "price": tp2,
+         "sell_pct": ex.get("tp2SellPct", 50)},
+        {"type": "TP3-MOONBAG", "price": None, "sell_pct": 0,
+         "note": "runner dijaga trailing -50% dari peak"},
         {"type": "SL", "price": sl, "sell_pct": 100},
     ]
 

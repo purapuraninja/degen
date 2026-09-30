@@ -3,18 +3,18 @@ sys.path.insert(0, ".")
 from src.exit_monitor import decide_exits
 from src.positions import apply_fifo
 
-CFG = {"exit": {"tp1Pct": 50, "tp1SellPct": 30, "tp2Pct": 100,
-                "tp2SellPct": 25, "slPct": 20, "trailingDropPct": 50}}
+CFG = {"exit": {"tp1Pct": 100, "tp1SellPct": 60, "tp2Pct": 200,
+                "tp2SellPct": 50, "slPct": 20, "trailingDropPct": 50}}
 
 
 def test_tp1():
-    acts = decide_exits(1.0, 1.6, 1.6, False, False, CFG)
-    assert acts == [("AUTO-TP1", 0.3)], acts
+    acts = decide_exits(1.0, 2.0, 2.0, False, False, CFG)
+    assert acts == [("AUTO-TP1", 0.6)], acts
 
 
 def test_tp1_tp2_sekaligus():
-    acts = decide_exits(1.0, 2.2, 2.2, False, False, CFG)
-    assert acts == [("AUTO-TP1", 0.3), ("AUTO-TP2", 0.25)], acts
+    acts = decide_exits(1.0, 3.0, 3.0, False, False, CFG)
+    assert acts == [("AUTO-TP1", 0.6), ("AUTO-TP2", 0.5)], acts
 
 
 def test_sl():

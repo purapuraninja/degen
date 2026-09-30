@@ -51,6 +51,9 @@ filters:
   rejectWash: true
   rejectBundledGt20Pct: true
   rejectDexBoostAfterPump: true
+  minPairAgeMin: 45
+  maxEntryDriftPct: 15
+  slBlacklistHours: 24
 
 risk:
   maxDailyLossSol: 0.75

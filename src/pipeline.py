@@ -89,6 +89,31 @@ def _safe(s: str) -> str:
     return str(s).encode("ascii", "ignore").decode() or "?"
 
 
+def verify_before_buy(chain: str, ca: str, t, cfg: dict):
+    """Tarik ulang pair <=60 dtk sebelum buy. Tolak bila pair hilang, liq
+    anjlok/drain, harga lari jauh, atau harga 0 (rug berjalan)."""
+    from .ingestor.token_detail import fetch_token_pairs, best_pair, pair_to_market
+    try:
+        bp = best_pair(fetch_token_pairs(chain, ca))
+        if not bp:
+            return False, "pair hilang", None
+        fm = pair_to_market(bp)
+    except Exception as e:
+        return False, f"re-verify gagal: {e}"[:120], None
+    minliq = cfg.get("minLiquidityUSD", {}).get(chain, 8000)
+    if fm["liquidity_usd"] < minliq:
+        return False, "liq anjlok di bawah minimum", fm
+    if t.liquidity_usd > 0 and fm["liquidity_usd"] < t.liquidity_usd * 0.5:
+        return False, "liq -50% (drain berjalan?)", fm
+    old_px = float((t.extra or {}).get("price") or 0)
+    drift = float(cfg.get("filters", {}).get("maxEntryDriftPct", 15))
+    if old_px > 0 and fm["price"] > old_px * (1 + drift / 100.0):
+        return False, f"harga lari +{drift}%+ (kejar pucuk?)", fm
+    if fm["price"] <= 0:
+        return False, "harga 0", fm
+    return True, "ok", fm
+
+
 def run_once(cfg_path: str = "config.yaml", limit: int = 10,
              state: RiskState | None = None) -> dict:
     cfg = load_config(cfg_path)
@@ -105,11 +130,53 @@ def run_once(cfg_path: str = "config.yaml", limit: int = 10,
             if not bp:
                 continue
             market = pair_to_market(bp)
+            # 1) umur pair: lewati zona sniper (baru launch = Bot Pump)
+            from .ingestor.token_detail import pair_age_min
+            age = pair_age_min(market.get("pair_created_at"))
+            min_age = float(cfg.get("filters", {}).get("minPairAgeMin", 45))
+            if age is not None and age < min_age:
+                print(f"[SKIP] {_safe(c.get('symbol', '') or ca[:6])} {chain} "
+                      f"umur {age:.0f} mnt < {min_age:.0f} (zona sniper)", flush=True)
+                continue
             sec = {"unknown": True}
             if chain == "solana":
                 sec = rugcheck_to_flags(fetch_rugcheck(ca))
-            t = build_features(ca, chain, market, sec,
-                               {"symbol": c.get("symbol", market.get("symbol", ""))})
+            extra = {"symbol": c.get("symbol", market.get("symbol", ""))}
+            # 2) GoPlus + honeypot.is untuk EVM: honeypot/mint/blacklist/proxy/tax
+            if chain in ("bsc", "base", "eth"):
+                g: dict = {}
+                try:
+                    from .analyzer.goplus import fetch_raw as _gf, to_flags as _gt
+                    g = _gt(_gf(chain, ca), ca)
+                    if g.get("honeypot") or g.get("mint_unlimited"):
+                        print(f"[GOPLUS] {_safe(extra['symbol'] or ca[:6])} honeypot={g.get('honeypot')} "
+                              f"mint={g.get('mint_unlimited')} tax={g.get('buy_tax')}/{g.get('sell_tax')} "
+                              f"holders={g.get('holders')}", flush=True)
+                except Exception as e:
+                    print(f"[goplus-gagal {ca[:6]}] {str(e)[:100]}", flush=True)
+                if not g.get("honeypot"):
+                    try:
+                        from .analyzer.honeypotis import fetch_raw as _hf, to_flags as _ht
+                        h = _ht(_hf(chain, ca, market.get("pair_address", "")))
+                        if h and (h.get("honeypot") or h.get("risk")):
+                            g = {"honeypot": h.get("honeypot", False),
+                                 "buy_tax": h.get("buy_tax", 0.0),
+                                 "sell_tax": h.get("sell_tax", 0.0)}
+                            print(f"[HONEYPOTIS] {_safe(extra['symbol'] or ca[:6])} "
+                                  f"honeypot={g['honeypot']} risk={h.get('risk')}", flush=True)
+                    except Exception as e:
+                        print(f"[honeypotis-gagal {ca[:6]}] {str(e)[:100]}", flush=True)
+                if g:
+                    for k in ("honeypot", "mint_unlimited", "blacklist", "proxy_risky"):
+                        if g.get(k):
+                            sec[k] = True
+                    if g.get("buy_tax"):
+                        extra["buy_tax"] = g["buy_tax"]
+                    if g.get("sell_tax"):
+                        extra["sell_tax"] = g["sell_tax"]
+                    if g.get("holders"):
+                        extra["holders"] = g["holders"]
+            t = build_features(ca, chain, market, sec, extra)
             r = score_token(t, cfg)
             # sinkronkan decider (redundan tapi eksplisit)
             r.decision = decide(r.score, r.l2, cfg) if not r.reasons[0].startswith("L0") else "SKIP"
@@ -154,6 +221,20 @@ def run_once(cfg_path: str = "config.yaml", limit: int = 10,
         notify(f"[SKIP-BUY] {_safe(t.symbol or t.ca)} masih open ({held:.1f}), "
                f"lewati — beli lagi bila sudah close 100% dan lolos scan")
         return {"winner": str(t.ca), "skipped": "already-holding", "score": r.score}
+    try:
+        from .exit_monitor import is_blacklisted
+        if is_blacklisted(db_path, t.chain, t.ca):
+            notify(f"[SKIP-BUY] {_safe(t.symbol or t.ca)} blacklist pasca-SL, lewati")
+            return {"winner": str(t.ca), "skipped": "blacklisted", "score": r.score}
+    except Exception:
+        pass
+    ok_buy, why_buy, fresh = verify_before_buy(t.chain, t.ca, t, cfg)
+    if not ok_buy:
+        notify(f"[SKIP-BUY] {_safe(t.symbol or t.ca)} re-verify gagal: {why_buy}")
+        return {"winner": str(t.ca), "skipped": "reverify", "score": r.score}
+    t.extra["price"] = fresh["price"]
+    t.liquidity_usd = fresh["liquidity_usd"]
+    t.mcap = fresh["mcap"]
     price = float((t.extra or {}).get("price") or 0)
     if not price:  # fallback proksi lama bila harga live tak ada
         price = t.mcap / 1e9 if t.mcap > 0 else 0.0

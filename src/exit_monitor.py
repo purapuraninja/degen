@@ -20,12 +20,16 @@ STATE_DDL = """CREATE TABLE IF NOT EXISTS paper_state(
   tp1_done INTEGER DEFAULT 0, tp2_done INTEGER DEFAULT 0,
   updated_ts TEXT DEFAULT '',
   PRIMARY KEY (ca, chain))"""
+BLACKLIST_DDL = """CREATE TABLE IF NOT EXISTS buy_blacklist(
+  ca TEXT NOT NULL, chain TEXT NOT NULL, until_ts TEXT DEFAULT '',
+  PRIMARY KEY (ca, chain))"""
 
 
 def ensure_state(db_path: str) -> None:
     con = sqlite3.connect(db_path)
     try:
         con.execute(STATE_DDL)
+        con.execute(BLACKLIST_DDL)
         con.commit()
     finally:
         con.close()
@@ -55,6 +59,31 @@ def set_state(db_path: str, chain: str, ca: str, peak: float,
         con.commit()
     finally:
         con.close()
+
+
+def blacklist_after_sl(db_path: str, chain: str, ca: str, hours: int = 24) -> None:
+    """Larang beli ulang token yang kena AUTO-SL selama N jam."""
+    ensure_state(db_path)
+    con = sqlite3.connect(db_path)
+    try:
+        con.execute("INSERT OR REPLACE INTO buy_blacklist(ca,chain,until_ts)"
+                    f" VALUES(?,?,datetime('now','+{int(hours)} hours'))",
+                    (ca, chain))
+        con.commit()
+    finally:
+        con.close()
+
+
+def is_blacklisted(db_path: str, chain: str, ca: str) -> bool:
+    try:
+        con = sqlite3.connect(db_path)
+        r = con.execute("select 1 from buy_blacklist where ca=? and chain=?"
+                        " and until_ts > datetime('now')",
+                        (ca, chain)).fetchone()
+        con.close()
+        return bool(r)
+    except Exception:
+        return False
 
 
 def decide_exits(avg: float, peak: float, cur: float,
@@ -123,6 +152,13 @@ def run_exit_check(db_path: str, cfg: dict) -> list[dict]:
                             "gain_pct": round((cur - avg) / avg * 100, 1)})
             if tag in ("AUTO-SL", "AUTO-TRAIL"):
                 break
+        if any(a["tag"] == "AUTO-SL" and a["ca"] == ca and a["chain"] == chain
+               for a in actions):
+            try:
+                hrs = int(cfg.get("filters", {}).get("slBlacklistHours", 24))
+                blacklist_after_sl(db_path, chain, ca, hrs)
+            except Exception:
+                pass
         set_state(db_path, chain, ca, peak, int(tp1_done), int(tp2_done))
     return actions
 

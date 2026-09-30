@@ -44,4 +44,17 @@ def pair_to_market(pair: dict) -> dict:
         "price_change_5m": float((pair.get("priceChange") or {}).get("m5") or 0),
         "dex": pair.get("dexId", ""),
         "pair_address": pair.get("pairAddress", ""),
+        "pair_created_at": pair.get("pairCreatedAt"),
     }
+
+
+def pair_age_min(created_ms, now_ms: float | None = None) -> float | None:
+    """Umur pair dalam menit. None bila timestamp tak ada (jangan hard-reject)."""
+    import time
+    try:
+        if not created_ms:
+            return None
+        now = now_ms if now_ms is not None else time.time() * 1000.0
+        return max(0.0, (float(now) - float(created_ms)) / 60000.0)
+    except Exception:
+        return None

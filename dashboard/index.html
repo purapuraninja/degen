@@ -144,7 +144,7 @@ function draw(p){const c=$("chart"),g=c.getContext("2d");g.clearRect(0,0,c.width
  g.fillStyle="#8a90b2";g.fillText(fmt(mx),8,12);g.fillText(fmt(mn),8,c.height-6)}
 $("refresh").onclick=()=>{load();loadPos()};
 document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".navbtn").forEach(x=>x.classList.remove("on"));b.classList.add("on");const v=b.dataset.v;$("view-dash").hidden=v!=="dash";$("view-pos").hidden=v!=="pos";if(v==="pos")loadPos()});
-function money(n){return n==null||isNaN(n)?"—":"$"+fmt(n)}
+function money(n){if(n==null||isNaN(n))return "—";const a=Math.abs(n);if(a>=1e6)return "$"+(n/1e6).toFixed(2)+"M";if(a>=1e3)return "$"+(n/1e3).toFixed(2)+"K";if(a>=1)return "$"+n.toFixed(2);if(a>=0.01)return "$"+n.toFixed(4);if(a>0)return "$"+n.toFixed(6);return "$0"}
 async function loadPos(){const d=await j("/api/positions");const tb=$("tPos");tb.innerHTML="<tr><th>Token</th><th>Mcap</th><th>Liq</th><th>Avg Entry</th><th>Size</th><th>Nilai</th><th>P/L</th><th>Exit</th></tr>";
 (d.positions||[]).forEach(p=>{const up=(p.pnl||0)>=0;const cls=p.exit==="HOLD"?"hold":(p.exit==="SL"?"sl":(p.exit==="UNKNOWN"?"hold":"tp1"));
 tb.innerHTML+=`<tr><td><b>${p.symbol}</b><br><small>${p.chain} ${String(p.ca).slice(0,6)}</small></td><td>${money(p.mcap)}</td><td>${money(p.liq)}</td><td>${money(p.avg_entry)}</td><td>${fmt(p.qty)}<br><small>cost ${money(p.cost)}</small></td><td>${money(p.nilai)}</td><td class="${up?"up":"down"}">${money(p.pnl)}<br><small>${p.pnl_pct==null?"—":p.pnl_pct.toFixed(1)+"%"}</small></td><td><span class="pill ${cls}">${p.exit}</span><br><button class="mini-btn" onclick="closePos('${p.ca}','${p.chain}')">Close</button></td></tr>`});

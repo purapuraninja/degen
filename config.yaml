@@ -40,11 +40,12 @@ sizing:
 
 exit:
   tp1Pct: 50
-  tp1SellPct: 25
+  tp1SellPct: 30
   tp2Pct: 100
   tp2SellPct: 25
   slPct: 20
-  trailingStartPct: 200
+  trailingArmedAfter: TP1
+  trailingDropPct: 50
 
 filters:
   rejectWash: true

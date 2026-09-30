@@ -121,12 +121,27 @@ def run_once(cfg_path: str = "config.yaml", limit: int = 10,
             print(f"[{r.decision}] {sym} {chain} score={r.score} "
                   f"L1={r.l1} L2={r.l2} L3={r.l3} mcap={t.mcap:.0f} liq={t.liquidity_usd:.0f} "
                   f"{_safe(r.reasons)}", flush=True)
+    try:
+        from .exit_monitor import run_exit_check
+        n_closed = 0
+        for a in run_exit_check(db_path, cfg):
+            notify(f"[AUTO-EXIT] {a['tag']} {a['ca'][:8]} qty={a['qty']} @ {a['price']} ({a['gain_pct']}%)")
+            if a["tag"] in ("AUTO-SL", "AUTO-TRAIL"):
+                n_closed += 1
+        state.open_positions = max(0, state.open_positions - n_closed)
+    except Exception as e:
+        print(f"[exit-monitor-gagal] {str(e)[:150]}", flush=True)
     win = pick_winner(scored, cfg)
     if not win:
         notify("[DECIDE] tidak ada BUY — semua SKIP/WATCH")
         return {"winner": None, "scored": len(scored)}
     t, r, ev = win
     notify(f"[DECIDE] WINNER {_safe(t.symbol or t.ca)} {t.chain} score={r.score} EV={ev} mcap={t.mcap:.0f}")
+    try:
+        from .positions import open_count
+        state.open_positions = open_count(db_path)
+    except Exception:
+        pass
     ok, why = check_can_buy(state, cfg)
     if not ok:
         notify(f"[RISK-BLOCK] {why}")

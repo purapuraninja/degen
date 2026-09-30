@@ -50,7 +50,7 @@ footer{text-align:center;color:var(--dim);padding:6px;font-size:11px}
 <body>
 <header>
 <div class="logo">DEGEN<span>-SCOUT</span></div>
-<nav><button class="navbtn on" data-v="dash">Dashboard</button><button class="navbtn" data-v="pos">Buy/Sell</button></nav>
+<nav><button class="navbtn on" data-v="dash">Dashboard</button><button class="navbtn" data-v="pos">Buy/Sell</button><button class="navbtn" data-v="hist">History</button></nav>
 <div class="hspace"></div>
 <span class="badge" id="mode">DRY_RUN</span>
 <span class="badge" id="statLine">…</span>
@@ -111,6 +111,11 @@ footer{text-align:center;color:var(--dim);padding:6px;font-size:11px}
 <table id="tPos"><tr><th>Token</th><th>Mcap</th><th>Liq</th><th>Avg Entry</th><th>Size</th><th>Nilai</th><th>P/L</th><th>Exit</th></tr></table>
 <small style="color:var(--dim)">Avg entry, nilai &amp; P/L dalam USD. Trade paper lama (harga proksi) memberi P/L tak akurat — Reset paper untuk mulai bersih.</small>
 </section>
+<section class="panel" id="view-hist" hidden>
+<div class="row"><h2>HISTORY — Buy/Sell</h2><div><button class="mini-btn" id="histRefresh">Refresh</button></div></div>
+<table id="tHist"><tr><th>Waktu</th><th>Side</th><th>Token</th><th>Harga</th><th>Qty</th><th>Nilai</th><th>P/L</th><th>Note</th></tr></table>
+<small style="color:var(--dim)">P/L pada baris SELL = hasil matched FIFO vs lot belinya.</small>
+</section>
 <footer>DEGEN-SCOUT v1 · DRY_RUN paper-trade · SOP: top1&lt;5% · bundle&lt;20% · signal 2-5x · beli hanya support/dip2 · TP +50/+100 SL -20%</footer>
 <script>
 let TOKENS=[], CUR=null, CHAIN="";
@@ -143,7 +148,7 @@ function draw(p){const c=$("chart"),g=c.getContext("2d");g.clearRect(0,0,c.width
  p.forEach((v,i)=>{const x=i/(p.length-1)*c.width,y=c.height-10-((v-mn)/rg)*(c.height-30);i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();
  g.fillStyle="#8a90b2";g.fillText(fmt(mx),8,12);g.fillText(fmt(mn),8,c.height-6)}
 $("refresh").onclick=()=>{load();loadPos()};
-document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".navbtn").forEach(x=>x.classList.remove("on"));b.classList.add("on");const v=b.dataset.v;$("view-dash").hidden=v!=="dash";$("view-pos").hidden=v!=="pos";if(v==="pos")loadPos()});
+document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".navbtn").forEach(x=>x.classList.remove("on"));b.classList.add("on");const v=b.dataset.v;$("view-dash").hidden=v!=="dash";$("view-pos").hidden=v!=="pos";$("view-hist").hidden=v!=="hist";if(v==="pos")loadPos();if(v==="hist")loadHist()});
 function money(n){if(n==null||isNaN(n))return "—";const a=Math.abs(n);if(a>=1e6)return "$"+(n/1e6).toFixed(2)+"M";if(a>=1e3)return "$"+(n/1e3).toFixed(2)+"K";if(a>=1)return "$"+n.toFixed(2);if(a>=0.01)return "$"+n.toFixed(4);if(a>0)return "$"+n.toFixed(6);return "$0"}
 async function loadPos(){const d=await j("/api/positions");const tb=$("tPos");tb.innerHTML="<tr><th>Token</th><th>Mcap</th><th>Liq</th><th>Avg Entry</th><th>Size</th><th>Nilai</th><th>P/L</th><th>Exit</th></tr>";
 (d.positions||[]).forEach(p=>{const up=(p.pnl||0)>=0;const cls=p.exit==="HOLD"?"hold":(p.exit==="SL"?"sl":(p.exit==="UNKNOWN"?"hold":"tp1"));
@@ -152,13 +157,17 @@ const t=d.totals||{};const set=(id,v)=>{const e=$(id);e.textContent=v==null?"—
 set("pTot",t.total);set("pUn",t.unrealized);set("pRe",t.realized)}
 async function closePos(ca,chain){if(!confirm("Close posisi "+ca.slice(0,8)+"? (paper, harga live)"))return;const r=await j("/api/close",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ca,chain})});alert(r.ok?"Closed @ "+r.price:"Gagal: "+(r.error||""));loadPos();load()}
 $("posRefresh").onclick=loadPos;
+async function loadHist(){const d=await j("/api/history?limit=200");const tb=$("tHist");tb.innerHTML="<tr><th>Waktu</th><th>Side</th><th>Token</th><th>Harga</th><th>Qty</th><th>Nilai</th><th>P/L</th><th>Note</th></tr>";
+(d||[]).forEach(h=>{const buy=h.side==="BUY";const up=(h.pnl||0)>=0;
+tb.innerHTML+=`<tr><td><small>${h.ts||"—"}</small></td><td><span class="pill ${buy?"buy":"skip"}">${h.side}</span></td><td><b>${h.symbol}</b><br><small>${h.chain} ${String(h.ca).slice(0,6)}</small></td><td>${money(h.price)}</td><td>${fmt(h.qty)}</td><td>${money(h.value)}</td><td class="${buy?"":(up?"up":"down")}">${buy?"—":money(h.pnl)}</td><td><small>${(h.note||"").slice(0,60)}</small></td></tr>`})}
+$("histRefresh").onclick=loadHist;
 $("posReset").onclick=async()=>{if(!confirm("Hapus SEMUA paper trades?"))return;await j("/api/reset",{method:"POST"});loadPos();load()};$("q").oninput=load;
 document.querySelectorAll("#chains button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#chains button").forEach(x=>x.classList.remove("on"));b.classList.add("on");CHAIN=b.dataset.c;load()});
 $("buy").onclick=async()=>{if(!CUR)return alert("Pilih token dulu");const r=await j("/api/buy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ca:CUR.ca,chain:CUR.chain,amount:+$("amt").value||0.1,price:+$("price").value||1})});alert(r.ok?"Paper BUY tercatat (DRY_RUN)":"Gagal: "+(r.error||""));load()};
 $("loop").onclick=()=>alert("Jalankan di terminal: python -m src.bot --once --limit 10 lalu Refresh.");
 $("tabSkip").onclick=()=>alert("SKIP = tolak token ini (wash/bundled/tax/LP). Lihat kolom Reason.");
 let _busy=false;
-async function tick(){if(_busy)return;_busy=true;try{await load();if(!$("view-pos").hidden)await loadPos()}catch(e){}finally{_busy=false}}
+async function tick(){if(_busy)return;_busy=true;try{await load();if(!$("view-pos").hidden)await loadPos();if(!$("view-hist").hidden)await loadHist()}catch(e){}finally{_busy=false}}
 setInterval(tick, 5000);
 load();
 </script>

@@ -64,4 +64,42 @@ def test_open_qty_guard():
         assert abs(open_qty(path, "bsc", "C2") - 5.0) < 1e-9  # masih open -> skip
         assert open_qty(path, "bsc", "C3") == 0.0      # belum pernah -> boleh
     finally:
-        os.unlink(path)
+        import gc
+        import time
+        gc.collect()
+        for _ in range(5):
+            try:
+                os.unlink(path)
+                break
+            except OSError:
+                time.sleep(0.2)
+
+
+def test_trade_history_pnl():
+    import sqlite3
+    import tempfile
+    import os
+    from src.positions import trade_history
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        con = sqlite3.connect(path)
+        con.execute("CREATE TABLE trades(ca TEXT, chain TEXT, side TEXT,"
+                    "amount_sol REAL, price REAL, ts TEXT, note TEXT)")
+        con.execute("INSERT INTO trades VALUES('X','bsc','BUY',0.1,1.0,'t1','qty=10')")
+        con.execute("INSERT INTO trades VALUES('X','bsc','SELL',0.0,2.0,'t2','AUTO-TP1 qty=4 @ 2.0')")
+        con.commit()
+        con.close()
+        h = trade_history(path)
+        assert h[0]["side"] == "AUTO-TP1" and abs(h[0]["pnl"] - 4.0) < 1e-9, h[0]
+        assert h[1]["side"] == "BUY" and h[1]["pnl"] is None
+    finally:
+        import gc
+        import time
+        gc.collect()
+        for _ in range(5):
+            try:
+                os.unlink(path)
+                break
+            except OSError:
+                time.sleep(0.2)

@@ -17,7 +17,7 @@ HERE = Path(__file__).parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 from src.config import load_config
-from src.positions import build_positions, live_market
+from src.positions import build_positions, live_market, trade_history
 
 INDEX = HERE / "index.html"
 CFG = load_config(str(ROOT / "config.yaml"))
@@ -99,6 +99,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(out).encode())
         if u.path == "/api/positions":
             return self._send(200, json.dumps(build_positions(self.db_path, CFG)).encode())
+        if u.path == "/api/history":
+            try:
+                lim = int((q.get("limit", ["200"])[0] or 200))
+            except Exception:
+                lim = 200
+            return self._send(200, json.dumps(trade_history(self.db_path, lim)).encode())
         if u.path == "/api/chart":
             import math
             import random

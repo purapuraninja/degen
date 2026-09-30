@@ -96,6 +96,56 @@ def open_qty(db_path: str, chain: str, ca: str) -> float:
     return oq if oq > 1e-9 else 0.0
 
 
+def trade_history(db_path: str, limit: int = 200) -> list:
+    """Riwayat lengkap, terbaru dulu. SELL membawa P/L matched (FIFO)."""
+    rows = load_trade_rows(db_path)
+    lots: dict[tuple, list] = {}
+    out: list[dict] = []
+    sym_cache: dict[tuple, str] = {}
+
+    def sym(chain, ca):
+        k = (chain, ca)
+        if k not in sym_cache:
+            sym_cache[k] = symbol_of(db_path, chain, ca)
+        return sym_cache[k]
+
+    for r in rows:
+        key = (r["chain"], r["ca"])
+        lots.setdefault(key, [])
+        side = (r["side"] or "").upper()
+        price = float(r["price"] or 0)
+        if side == "BUY":
+            q = buy_qty(r["note"], r["amount_sol"], price)
+            if q > 0:
+                lots[key].append([q, price])
+            out.append({"ts": r["ts"], "side": "BUY", "ca": r["ca"],
+                        "chain": r["chain"], "symbol": sym(r["chain"], r["ca"]),
+                        "price": price, "qty": q, "value": q * price,
+                        "pnl": None, "note": r["note"]})
+        else:
+            m = re.search(r"qty=([\d.eE+-]+)", r["note"] or "")
+            try:
+                q = float(m.group(1)) if m else sum(x[0] for x in lots[key])
+            except Exception:
+                q = sum(x[0] for x in lots[key])
+            match = 0.0
+            left = q
+            while left > 1e-12 and lots[key]:
+                take = min(lots[key][0][0], left)
+                match += (price - lots[key][0][1]) * take
+                lots[key][0][0] -= take
+                left -= take
+                if lots[key][0][0] <= 1e-12:
+                    lots[key].pop(0)
+            tag = (r["note"] or "").split("qty=")[0].strip() or "SELL"
+            out.append({"ts": r["ts"], "side": tag, "ca": r["ca"],
+                        "chain": r["chain"], "symbol": sym(r["chain"], r["ca"]),
+                        "price": price, "qty": q, "value": q * price,
+                        "pnl": match, "note": r["note"]})
+    out.reverse()
+    return out[:limit]
+
+
 def symbol_of(db_path: str, chain: str, ca: str) -> str:
     try:
         con = db_con(db_path)

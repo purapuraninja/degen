@@ -131,7 +131,9 @@ def run_once(cfg_path: str = "config.yaml", limit: int = 10,
     if not ok:
         notify(f"[RISK-BLOCK] {why}")
         return {"winner": str(t.ca), "blocked": why}
-    price = t.mcap / 1e9 if t.mcap > 0 else 0.0  # proksi; executor pakai harga pasar aktual
+    price = float((t.extra or {}).get("price") or 0)
+    if not price:  # fallback proksi lama bila harga live tak ada
+        price = t.mcap / 1e9 if t.mcap > 0 else 0.0
     res = execute_buy(t, r, price or 1.0, cfg)
     state.open_positions += 1
     notify(f"[BUY] {res}")

@@ -36,6 +36,12 @@ input,select{background:#0e1330;border:1px solid var(--line);color:var(--txt);bo
 .up{color:var(--green)}.down{color:var(--red)}
 table{width:100%;border-collapse:collapse;font-size:11.5px}th{color:var(--dim);text-align:left;padding:6px;border-bottom:1px solid var(--line)}td{padding:6px;border-bottom:1px solid #1b2140}
 .btn{background:var(--blue);border:0;color:#fff;padding:10px;border-radius:6px;width:100%;font-weight:800;cursor:pointer;margin-top:8px}
+.navbtn{background:transparent;border:0;color:var(--dim);cursor:pointer;font-size:13px;padding:4px 8px}
+.navbtn.on{color:var(--txt);border-bottom:2px solid var(--cyan);padding-bottom:8px}
+#view-pos{margin:10px}.pill.hold{background:rgba(138,144,178,.15);color:var(--dim);border:1px solid var(--dim)}
+.pill.tp1,.pill.tp2{background:rgba(46,189,133,.15);color:var(--green);border:1px solid var(--green)}
+.pill.sl{background:rgba(246,70,93,.15);color:var(--red);border:1px solid var(--red)}
+.mini-btn{background:#1d2447;color:#fff;border:1px solid var(--line);border-radius:5px;padding:3px 10px;cursor:pointer;font-size:11px}
 .btn.ghost{background:#1d2447}.feed{margin-top:10px}.feed div{padding:7px 4px;border-bottom:1px solid #1b2140;color:var(--dim)}.feed b{color:var(--txt)}
 footer{text-align:center;color:var(--dim);padding:6px;font-size:11px}
 .scorebar{height:5px;background:#242b52;border-radius:4px;margin-top:4px}.scorebar i{display:block;height:5px;border-radius:4px;background:var(--cyan)}
@@ -44,13 +50,13 @@ footer{text-align:center;color:var(--dim);padding:6px;font-size:11px}
 <body>
 <header>
 <div class="logo">DEGEN<span>-SCOUT</span></div>
-<nav><b>Dashboard</b><span>Scanner</span><span>Smart Money</span><span>Backtest</span><span>Help</span></nav>
+<nav><button class="navbtn on" data-v="dash">Dashboard</button><button class="navbtn" data-v="pos">Buy/Sell</button></nav>
 <div class="hspace"></div>
 <span class="badge" id="mode">DRY_RUN</span>
 <span class="badge" id="statLine">…</span>
 <button class="wallet" id="refresh">Refresh</button>
 </header>
-<div class="layout">
+<div class="layout" id="view-dash">
 <aside class="panel">
 <h3>WATCHLIST — LIVE SCAN</h3>
 <div class="row"><div><small style="color:var(--dim)">TOTAL SCORED</small><div class="big" id="total">0</div></div><div style="text-align:right"><small style="color:var(--dim)">BUY / WATCH</small><div class="big"><span class="up" id="nbuy">0</span> / <span id="nwatch">0</span></div></div></div>
@@ -95,6 +101,16 @@ footer{text-align:center;color:var(--dim);padding:6px;font-size:11px}
 <div class="feed" id="acts"></div>
 </aside>
 </div>
+<section class="panel" id="view-pos" hidden>
+<div class="row"><h2>BUY / SELL — Paper Positions</h2><div><button class="mini-btn" id="posRefresh">Refresh</button> <button class="mini-btn" id="posReset">Reset paper</button></div></div>
+<div class="cards" style="grid-template-columns:repeat(3,1fr)">
+<div class="card"><small>TOTAL P/L</small><br><b id="pTot">—</b></div>
+<div class="card"><small>UNREALIZED (open)</small><br><b id="pUn">—</b></div>
+<div class="card"><small>REALIZED (closed)</small><br><b id="pRe">—</b></div>
+</div>
+<table id="tPos"><tr><th>Token</th><th>Mcap</th><th>Liq</th><th>Avg Entry</th><th>Size</th><th>Nilai</th><th>P/L</th><th>Exit</th></tr></table>
+<small style="color:var(--dim)">Avg entry, nilai &amp; P/L dalam USD. Trade paper lama (harga proksi) memberi P/L tak akurat — Reset paper untuk mulai bersih.</small>
+</section>
 <footer>DEGEN-SCOUT v1 · DRY_RUN paper-trade · SOP: top1&lt;5% · bundle&lt;20% · signal 2-5x · beli hanya support/dip2 · TP +50/+100 SL -20%</footer>
 <script>
 let TOKENS=[], CUR=null, CHAIN="";
@@ -126,7 +142,17 @@ function draw(p){const c=$("chart"),g=c.getContext("2d");g.clearRect(0,0,c.width
  const mn=Math.min(...p),mx=Math.max(...p),rg=(mx-mn)||1;g.strokeStyle="#00e5cc";g.lineWidth=2;g.beginPath();
  p.forEach((v,i)=>{const x=i/(p.length-1)*c.width,y=c.height-10-((v-mn)/rg)*(c.height-30);i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();
  g.fillStyle="#8a90b2";g.fillText(fmt(mx),8,12);g.fillText(fmt(mn),8,c.height-6)}
-$("refresh").onclick=load;$("q").oninput=load;
+$("refresh").onclick=()=>{load();loadPos()};
+document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>{document.querySelectorAll(".navbtn").forEach(x=>x.classList.remove("on"));b.classList.add("on");const v=b.dataset.v;$("view-dash").hidden=v!=="dash";$("view-pos").hidden=v!=="pos";if(v==="pos")loadPos()});
+function money(n){return n==null||isNaN(n)?"—":"$"+fmt(n)}
+async function loadPos(){const d=await j("/api/positions");const tb=$("tPos");tb.innerHTML="<tr><th>Token</th><th>Mcap</th><th>Liq</th><th>Avg Entry</th><th>Size</th><th>Nilai</th><th>P/L</th><th>Exit</th></tr>";
+(d.positions||[]).forEach(p=>{const up=(p.pnl||0)>=0;const cls=p.exit==="HOLD"?"hold":(p.exit==="SL"?"sl":(p.exit==="UNKNOWN"?"hold":"tp1"));
+tb.innerHTML+=`<tr><td><b>${p.symbol}</b><br><small>${p.chain} ${String(p.ca).slice(0,6)}</small></td><td>${money(p.mcap)}</td><td>${money(p.liq)}</td><td>${money(p.avg_entry)}</td><td>${fmt(p.qty)}<br><small>cost ${money(p.cost)}</small></td><td>${money(p.nilai)}</td><td class="${up?"up":"down"}">${money(p.pnl)}<br><small>${p.pnl_pct==null?"—":p.pnl_pct.toFixed(1)+"%"}</small></td><td><span class="pill ${cls}">${p.exit}</span><br><button class="mini-btn" onclick="closePos('${p.ca}','${p.chain}')">Close</button></td></tr>`});
+const t=d.totals||{};const set=(id,v)=>{const e=$(id);e.textContent=v==null?"—":(v<0?"-$":"$")+fmt(Math.abs(v));e.className=v<0?"down":"up"};
+set("pTot",t.total);set("pUn",t.unrealized);set("pRe",t.realized)}
+async function closePos(ca,chain){if(!confirm("Close posisi "+ca.slice(0,8)+"? (paper, harga live)"))return;const r=await j("/api/close",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ca,chain})});alert(r.ok?"Closed @ "+r.price:"Gagal: "+(r.error||""));loadPos();load()}
+$("posRefresh").onclick=loadPos;
+$("posReset").onclick=async()=>{if(!confirm("Hapus SEMUA paper trades?"))return;await j("/api/reset",{method:"POST"});loadPos();load()};$("q").oninput=load;
 document.querySelectorAll("#chains button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#chains button").forEach(x=>x.classList.remove("on"));b.classList.add("on");CHAIN=b.dataset.c;load()});
 $("buy").onclick=async()=>{if(!CUR)return alert("Pilih token dulu");const r=await j("/api/buy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ca:CUR.ca,chain:CUR.chain,amount:+$("amt").value||0.1,price:+$("price").value||1})});alert(r.ok?"Paper BUY tercatat (DRY_RUN)":"Gagal: "+(r.error||""));load()};
 $("loop").onclick=()=>alert("Jalankan di terminal: python -m src.bot --once --limit 10 lalu Refresh.");

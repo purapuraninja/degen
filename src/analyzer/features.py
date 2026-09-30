@@ -60,5 +60,6 @@ def build_features(ca: str, chain: str, market: dict, sec: dict,
         at_support=bool(ex.get("at_support", not fomo)),
         risk_reward=float(ex.get("risk_reward", 3.0)),
         narrative=str(ex.get("narrative", "default")),
-        extra={"turnover_5m": round(turnover, 2), "dex": market.get("dex", "")},
+        extra={"turnover_5m": round(turnover, 2), "dex": market.get("dex", ""),
+               "price": float(market.get("price") or 0)},
     )

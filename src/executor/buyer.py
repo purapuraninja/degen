@@ -45,17 +45,18 @@ def execute_buy(t: TokenFeatures, r: ScoreResult, price: float, cfg: dict) -> di
     plan = position_plan(cfg, t.chain)
     amount = plan["per_play"]
     exits = build_exit_orders(price, cfg)
+    qty = (amount / price) if price else 0.0
     live_ok = os.getenv("LIVE_TRADING", "0") == "1" and os.getenv("BOT_PRIVATE_KEY", "")
 
     if mode == "FULL_AUTO" and live_ok:
         # TODO: sambungkan Jupiter/Pancake di sini. Stub tetap catat agar audit jelas.
         _log_trade(db_path, t, "BUY", amount, price,
-                   f"LIVE-STUB score={r.score} exits={exits}")
+                   f"LIVE-STUB score={r.score} qty={qty:.4f} exits={exits}")
         return {"mode": "FULL_AUTO", "status": "LIVE-STUB",
                 "note": "stub live — sambungkan Jupiter/RPC sebelum dana nyata"}
     if mode == "SEMI_AUTO":
         print(ave_manual_instruction(t, amount), flush=True)
-        _log_trade(db_path, t, "BUY", amount, price, f"SEMI_AUTO score={r.score}")
+        _log_trade(db_path, t, "BUY", amount, price, f"SEMI_AUTO score={r.score} qty={qty:.4f}")
         return {"mode": "SEMI_AUTO", "status": "AWAITING_MANUAL", "amount": amount}
-    _log_trade(db_path, t, "BUY", amount, price, f"DRY_RUN score={r.score}")
+    _log_trade(db_path, t, "BUY", amount, price, f"DRY_RUN score={r.score} qty={qty:.4f}")
     return {"mode": "DRY_RUN", "status": "PAPER", "amount": amount, "exits": exits}

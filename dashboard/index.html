@@ -157,6 +157,9 @@ document.querySelectorAll("#chains button").forEach(b=>b.onclick=()=>{document.q
 $("buy").onclick=async()=>{if(!CUR)return alert("Pilih token dulu");const r=await j("/api/buy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ca:CUR.ca,chain:CUR.chain,amount:+$("amt").value||0.1,price:+$("price").value||1})});alert(r.ok?"Paper BUY tercatat (DRY_RUN)":"Gagal: "+(r.error||""));load()};
 $("loop").onclick=()=>alert("Jalankan di terminal: python -m src.bot --once --limit 10 lalu Refresh.");
 $("tabSkip").onclick=()=>alert("SKIP = tolak token ini (wash/bundled/tax/LP). Lihat kolom Reason.");
+let _busy=false;
+async function tick(){if(_busy)return;_busy=true;try{await load();if(!$("view-pos").hidden)await loadPos()}catch(e){}finally{_busy=false}}
+setInterval(tick, 5000);
 load();
 </script>
 </body>

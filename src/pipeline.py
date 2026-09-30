@@ -19,6 +19,58 @@ from .analyzer.security import fetch_rugcheck, rugcheck_to_flags
 from .analyzer.features import build_features
 from .executor.buyer import execute_buy
 
+
+def _helius_rescore(ca, chain, market, sec, t, r, cfg):
+    """Deep-dive Helius untuk kandidat Solana lolos awal: timpa default
+    heuristik dengan observasi on-chain lalu skor ulang. Gagal -> skor awal."""
+    if chain != "solana":
+        return t, r
+    try:
+        from .ingestor.helius import load_key, deep_dive
+    except Exception:
+        return t, r
+    key = load_key()
+    if not key:
+        return t, r
+    watch_th = cfg.get("scores", {}).get("watchThreshold", 60)
+    if r.score < watch_th and not r.decision == "BUY":
+        return t, r
+    try:
+        obs = deep_dive(ca, key, with_bundle=(r.decision == "BUY"))
+    except Exception as e:
+        print(f"[helius-gagal {ca[:6]}] {str(e)[:120]}", flush=True)
+        return t, r
+    if not obs:
+        return t, r
+    extra = {"symbol": t.symbol, "top1_pct": t.top1_pct,
+             "bundle_max_cluster_pct": t.bundle_max_cluster_pct,
+             "bundle_cluster_count": t.bundle_cluster_count}
+    for k in ("top1_pct", "top10_virgin_ratio", "holders",
+              "bundle_max_cluster_pct", "bundle_cluster_count"):
+        if k in obs:
+            extra[k] = obs[k]
+    sec2 = dict(sec)
+    if "mint_unlimited" in obs:
+        sec2["mint_unlimited"] = obs["mint_unlimited"]
+    if "can_freeze" in obs:
+        sec2["can_freeze"] = obs["can_freeze"]
+    t2 = build_features(ca, chain, market, sec2, extra)
+    # pertahankan sinyal sosial/teknikal dari putaran pertama (belum live)
+    for f in ("signal_count", "signal_distinct_wallets", "jp_wallet_count",
+              "whale_inflow", "kol_tagged_inflow", "mention_per_hour",
+              "kol_legit_shill", "cabal_edge", "dex_boost_early",
+              "dex_boost_after_pump", "community_healthy", "volume_spike_mult",
+              "fomo_top", "dip_state", "at_support", "risk_reward", "narrative"):
+        setattr(t2, f, getattr(t, f))
+    r2 = score_token(t2, cfg)
+    r2.decision = decide(r2.score, r2.l2, cfg) if not r2.reasons[0].startswith("L0") else "SKIP"
+    r2.reasons = r2.reasons + ["helius:holder+authority real"]
+    print(f"[HELIUS] {t2.symbol or ca[:6]} top1={extra.get('top1_pct')}% "
+          f"holders={extra.get('holders', '?')} virgin={extra.get('top10_virgin_ratio', '?')} "
+          f"bundle={extra.get('bundle_max_cluster_pct')}% -> {r2.decision} {r2.score}",
+          flush=True)
+    return t2, r2
+
 def _save_score(db_path: str, t, r) -> None:
     try:
         con = sqlite3.connect(db_path)
@@ -61,6 +113,8 @@ def run_once(cfg_path: str = "config.yaml", limit: int = 10,
             r = score_token(t, cfg)
             # sinkronkan decider (redundan tapi eksplisit)
             r.decision = decide(r.score, r.l2, cfg) if not r.reasons[0].startswith("L0") else "SKIP"
+            if not r.reasons[0].startswith("L0"):
+                t, r = _helius_rescore(ca, chain, market, sec, t, r, cfg)
             _save_score(db_path, t, r)
             scored.append((t, r))
             sym = _safe(t.symbol or ca[:6])

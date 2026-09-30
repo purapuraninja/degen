@@ -138,7 +138,7 @@ def run_once(cfg_path: str = "config.yaml", limit: int = 10,
     t, r, ev = win
     notify(f"[DECIDE] WINNER {_safe(t.symbol or t.ca)} {t.chain} score={r.score} EV={ev} mcap={t.mcap:.0f}")
     try:
-        from .positions import open_count
+        from .positions import open_count, open_qty
         state.open_positions = open_count(db_path)
     except Exception:
         pass
@@ -146,6 +146,14 @@ def run_once(cfg_path: str = "config.yaml", limit: int = 10,
     if not ok:
         notify(f"[RISK-BLOCK] {why}")
         return {"winner": str(t.ca), "blocked": why}
+    try:
+        held = open_qty(db_path, t.chain, t.ca)
+    except Exception:
+        held = 0.0
+    if held > 0:
+        notify(f"[SKIP-BUY] {_safe(t.symbol or t.ca)} masih open ({held:.1f}), "
+               f"lewati — beli lagi bila sudah close 100% dan lolos scan")
+        return {"winner": str(t.ca), "skipped": "already-holding", "score": r.score}
     price = float((t.extra or {}).get("price") or 0)
     if not price:  # fallback proksi lama bila harga live tak ada
         price = t.mcap / 1e9 if t.mcap > 0 else 0.0

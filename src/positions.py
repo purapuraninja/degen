@@ -89,6 +89,13 @@ def open_count(db_path: str) -> int:
     return sum(1 for ls in lots.values() if sum(x[0] for x in ls) > 0)
 
 
+def open_qty(db_path: str, chain: str, ca: str) -> float:
+    """Sisa qty open 1 token. 0 = sudah close 100% (boleh dibeli lagi)."""
+    lots, _ = apply_fifo(load_trade_rows(db_path))
+    oq = sum(x[0] for x in lots.get((chain, ca), []))
+    return oq if oq > 1e-9 else 0.0
+
+
 def symbol_of(db_path: str, chain: str, ca: str) -> str:
     try:
         con = db_con(db_path)
